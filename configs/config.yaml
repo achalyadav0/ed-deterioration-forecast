@@ -1,0 +1,107 @@
+# Main pipeline configuration.
+# Override anything from the command line, e.g.:
+#   edews run --stages all model=gru labels.horizon_end=30
+# Each stage's cache key is built from the config sections it reads, so changing
+# e.g. labels.* reruns only the label stage and everything after it.
+
+paths:
+  raw_dir: data/raw              # MC-MED CSVs (visits.csv, numerics.csv, split_chrono_*.csv)
+  work_dir: data/work            # cached stage outputs (parquet / npy / json)
+  runs_dir: runs                 # trained models, metrics, reports
+
+model: tcn                       # tcn | gru | xgb | persistence | news2_rule  (loads configs/model/<name>.yaml)
+seed: 42
+
+data:
+  max_visits: null               # e.g. 500 for a quick local dev run; null = all
+  sources: [Monitor, Chart]      # numerics.csv Source values to keep
+  # Pipeline vital name -> MC-MED numerics.csv "Measure" value
+  measures:
+    hr: HR
+    rr: RR
+    spo2: SpO2
+    sbp: SBP
+    temp: Temp
+    o2_lpm: LPM_O2               # supplemental O2 flow; used only for the NEWS2 O2 item, not as a model input
+  temp_unit: F                   # MC-MED numerics Temp is Fahrenheit -> converted to Celsius
+  min_monitored_minutes: 105     # drop visits shorter than window + horizon
+
+clean:
+  # Plausible physiological ranges; values outside are treated as artefacts (dropped)
+  ranges:
+    hr: [20, 250]
+    rr: [4, 60]
+    spo2: [50, 100]
+    sbp: [50, 260]
+    temp: [30.0, 43.0]           # Celsius, after conversion
+  # Causal spike filter (median of the last N minutes' observations), applied to these vitals
+  median_filter_vitals: [hr, rr, spo2]
+  median_filter_minutes: 3
+
+resample:
+  vitals: [hr, rr, spo2, sbp, temp]   # model input vitals, in channel order
+  # Maximum minutes a value is carried forward before it is considered missing
+  ffill_limit_min:
+    hr: 5
+    rr: 5
+    spo2: 5
+    sbp: 60
+    temp: 360
+  o2_ffill_limit_min: 60
+  time_since_cap_min: 360        # "minutes since last measurement" is capped at this value
+
+labels:
+  scheme: news2_4class           # low / low-medium / medium / high (RCP NEWS2 response bands)
+  use_o2_item: true              # add NEWS2 supplemental-O2 points when LPM_O2 > 0
+  required_vitals: [hr, rr, spo2] # a minute's score is valid only if these are available
+  current_lookback_min: 5        # current label = worst class over the last N minutes (incl. t)
+  horizon_start: 30              # future label = worst class over minutes (t+start, t+end]
+  horizon_end: 60
+  min_horizon_coverage: 0.5      # fraction of valid-score minutes required inside the horizon
+
+windows:
+  length_min: 45
+  stride_train_min: 5
+  stride_eval_min: 1
+  min_observed_frac: 0.7         # of window minutes where all required vitals are observed (not filled)
+
+split:
+  scheme: chrono                 # chrono -> MC-MED split_chrono_*.csv ; random -> split_random_*.csv ; patient -> our own patient-level split
+  val_frac: 0.15                 # used only when scheme == patient
+  test_frac: 0.15
+
+train:
+  device: auto                   # auto | cpu | cuda
+  batch_size: 512
+  max_epochs: 30
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  patience: 5
+  loss_weight_current: 0.3
+  loss_weight_future: 1.0
+  class_weighting: inverse_sqrt  # none | inverse | inverse_sqrt
+  focal_gamma: 0.0               # >0 switches cross-entropy to focal loss
+  select_metric: val_future_transition_auprc
+  tracker: none                  # none | wandb
+
+eval:
+  alert_class: 2                 # "deterioration" = future class >= this (medium or high)
+  target_sensitivity: 0.80       # alert threshold chosen on validation to hit this sensitivity
+  event_lookback_min: 180        # how far before an event an alert counts for lead time
+  bootstrap: 200                 # bootstrap resamples (by patient) for confidence intervals
+
+export:
+  opset: 17
+  quantize_int8: true
+  stream_visits: 20              # test visits written to the bundle for Raspberry Pi replay
+
+edge:
+  mqtt_host: localhost
+  mqtt_port: 1883
+  topic_in: ed/vitals            # ed/vitals/<bed_id>, one JSON message per minute
+  topic_out: ed/alerts
+  speedup: 60.0                  # replay speed: 60 = one simulated minute per real second
+  escalation:
+    notify_threshold: 0.5        # P(future >= medium) -> notify doctor
+    met_threshold: 0.5           # P(future == high)   -> call medical emergency team
+    cooldown_min: 30

@@ -1,0 +1,33 @@
+# ---- Data: NEVER commit MC-MED (PhysioNet credentialed data use agreement) ----
+data/
+*.csv
+*.csv.gz
+*.parquet
+*.npy
+*.npz
+*.jsonl.gz
+!tests/fixtures/*.csv
+
+# ---- Pipeline outputs ----
+runs/
+wandb/
+*.pt
+*.onnx
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ---- OS / editors ----
+.DS_Store
+.idea/
+.vscode/

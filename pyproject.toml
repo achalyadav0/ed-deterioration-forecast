@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "edews"
+version = "0.1.0"
+description = "Edge-deployable forecasting of NEWS2-based deterioration in emergency department patients (MC-MED)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.24",
+    "omegaconf>=2.3",
+]
+
+[project.optional-dependencies]
+# Offline pipeline: preprocessing, training, evaluation (laptop / Kaggle)
+train = [
+    "polars>=1.0",
+    "pyarrow>=14",
+    "pandas>=2.0",
+    "scikit-learn>=1.3",
+    "xgboost>=2.0",
+    "torch>=2.1",
+    "onnx>=1.15",
+    "onnxruntime>=1.17",
+]
+# Raspberry Pi runtime: only what inference + streaming needs
+edge = [
+    "onnxruntime>=1.17",
+    "paho-mqtt>=2.0",
+]
+track = ["wandb>=0.16"]
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[project.scripts]
+edews = "edews.pipeline:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 130
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E731", "B905", "B027"]

@@ -1,0 +1,7 @@
+name: tcn
+kind: torch
+channels: 48
+kernel_size: 3
+dilations: [1, 2, 4, 8]   # receptive field = 1 + 2*(k-1)*sum(d) = 61 min >= 45-min window
+dropout: 0.15
+head_hidden: 32

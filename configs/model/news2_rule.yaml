@@ -1,0 +1,6 @@
+name: news2_rule
+kind: baseline
+# Rule a hospital could deploy without ML: predict escalation one class up when the
+# NEWS2 score rose by >= rise_points within the last rise_window_min minutes.
+rise_points: 2
+rise_window_min: 30

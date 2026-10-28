@@ -1,0 +1,6 @@
+name: gru
+kind: torch
+hidden: 64
+layers: 2
+dropout: 0.15
+head_hidden: 32

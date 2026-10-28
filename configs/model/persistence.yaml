@@ -1,0 +1,3 @@
+name: persistence
+kind: baseline
+# Future class = current class. The "nothing changes" baseline every model must beat.
